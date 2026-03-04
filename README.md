@@ -24,22 +24,35 @@ Python web UI for managing a [tac_plus-ng](https://github.com/MarcJHuber/event-d
 
 ## Installation
 
+### Automatic (recommended)
+
 ```bash
-# 1. Clone or copy this directory
-cd /home/alex_jd/AI/tacacs-web
+sudo bash install.sh
+```
 
-# 2. Install dependencies
-pip install -r requirements.txt
+The script will:
+1. Create a `tacacs-web` system user
+2. Create a Python venv and install dependencies
+3. Generate `.env` with a random `SESSION_SECRET`
+4. Set file permissions and create the backup directory
+5. Write `/etc/sudoers.d/tacacs-web`
+6. Install `/etc/systemd/system/tacacs-web.service`
+7. Interactively create the first admin user
 
-# 3. Configure environment
-cp .env.example .env
-$EDITOR .env        # set SESSION_SECRET and adjust paths
+The script will also ask whether to configure an nginx reverse proxy and which ports to use.
 
-# 4. Create first admin user
+Uninstall:
+```bash
+sudo bash install.sh --uninstall
+```
+
+### Manual
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env   # set SESSION_SECRET
 python manage_users.py add admin admin
-
-# 5. Start the server
-uvicorn web:app --host 127.0.0.1 --port 8080
+.venv/bin/uvicorn web:app --host 127.0.0.1 --port 8080
 ```
 
 Open http://127.0.0.1:8080 and log in.

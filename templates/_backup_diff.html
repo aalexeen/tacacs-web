@@ -1,0 +1,7 @@
+<pre style="font-family:monospace;font-size:0.78rem;white-space:pre;overflow-x:auto;
+           background:#1a1a2e;color:#cdd6f4;padding:1rem;border-radius:4px;
+           max-height:500px;overflow-y:auto">{% for line in diff.splitlines() %}{% if line.startswith('+') and not line.startswith('+++') %}<span style="color:#a6e3a1">{{ line }}</span>
+{% elif line.startswith('-') and not line.startswith('---') %}<span style="color:#f38ba8">{{ line }}</span>
+{% elif line.startswith('@@') %}<span style="color:#89dceb">{{ line }}</span>
+{% else %}{{ line }}
+{% endif %}{% endfor %}</pre>

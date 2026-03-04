@@ -1,0 +1,47 @@
+{% if message is defined %}
+<div class="alert alert-success" style="margin:1rem 1rem 0">{{ message }}</div>
+{% endif %}
+
+{% if backups %}
+<table data-sortable>
+    <thead>
+        <tr>
+            <th class="sortable">Filename</th>
+            <th class="sortable">Created</th>
+            <th class="sortable">Size</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for b in backups %}
+    <tr>
+        <td style="font-family:monospace;font-size:0.85rem">{{ b.name }}</td>
+        <td>{{ b.mtime }}</td>
+        <td>{{ b.size }} B</td>
+        <td style="display:flex;gap:0.4rem;padding:0.4rem 0.75rem">
+            <button class="btn btn-secondary" style="font-size:0.8rem"
+                    onclick="showDiff('{{ b.name }}')">Diff</button>
+            {% if user.role in ('operator', 'admin') %}
+            <button class="btn btn-secondary" style="font-size:0.8rem"
+                    hx-post="/backups/{{ b.name }}/restore"
+                    hx-target="#backup-list"
+                    hx-swap="innerHTML"
+                    hx-confirm="Restore '{{ b.name }}' as current config? Current config will be auto-backed up.">
+                Restore
+            </button>
+            <button class="btn btn-danger" style="font-size:0.8rem"
+                    hx-delete="/backups/{{ b.name }}"
+                    hx-target="#backup-list"
+                    hx-swap="innerHTML"
+                    hx-confirm="Delete backup '{{ b.name }}'?">
+                Delete
+            </button>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="padding:1.5rem;color:#999;font-size:0.9rem">No backups yet.</p>
+{% endif %}

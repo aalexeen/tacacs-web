@@ -1,0 +1,12 @@
+<pre style="font-family:monospace;font-size:0.8rem;padding:1rem;
+           background:#1a1a2e;color:#cdd6f4;overflow-x:auto;
+           max-height:600px;overflow-y:auto;border-radius:0;margin:0"
+     id="log-pre">{% for line in log_lines %}{{ line }}
+{% endfor %}</pre>
+<script>
+// Scroll to bottom on load
+(function() {
+    const pre = document.getElementById("log-pre");
+    if (pre) pre.scrollTop = pre.scrollHeight;
+})();
+</script>

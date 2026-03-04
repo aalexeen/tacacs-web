@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Config Editor — TACACS+ Web UI{% endblock %}
+{% block content %}
+<h1>Config Editor</h1>
+
+<div class="card" style="margin-bottom:0.75rem">
+    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap">
+        <span style="font-size:0.85rem; color:#666">
+            <strong>File:</strong> {{ config_path }}
+        </span>
+        <div id="daemon-status-badge"
+             hx-get="/daemon/status"
+             hx-trigger="load, every 10s"
+             hx-swap="innerHTML">
+            <span class="badge" style="background:#ccc;color:#333">checking...</span>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden">
+    <form id="editor-form">
+        <!-- CodeMirror editor -->
+        <div id="editor-wrapper" style="border-bottom:1px solid #eee">
+            <textarea id="config-editor" name="content" style="display:none">{{ content }}</textarea>
+        </div>
+
+        <!-- Toolbar -->
+        <div style="padding:0.75rem 1rem; display:flex; gap:0.5rem; flex-wrap:wrap; background:#fafafa">
+            {% if user.role in ('operator', 'admin') %}
+            <button type="button" class="btn btn-secondary"
+                    hx-post="/config/check"
+                    hx-include="#editor-form"
+                    hx-target="#check-result"
+                    hx-swap="innerHTML">
+                Check config
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    hx-post="/config/save"
+                    hx-include="#editor-form"
+                    hx-target="#check-result"
+                    hx-swap="innerHTML">
+                Save
+            </button>
+            <button type="button" class="btn btn-primary"
+                    hx-post="/config/apply"
+                    hx-include="#editor-form"
+                    hx-target="#check-result"
+                    hx-swap="innerHTML"
+                    onclick="return confirm('Save and reload daemon (SIGHUP)?')">
+                Save &amp; Apply
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    hx-post="/backups/create"
+                    hx-vals='{"label":"manual"}'
+                    hx-target="#backup-toast"
+                    hx-swap="innerHTML">
+                Backup current
+            </button>
+            {% endif %}
+            <span id="backup-toast" style="font-size:0.85rem;color:#1e8449;align-self:center"></span>
+        </div>
+    </form>
+
+    <!-- Check result -->
+    <div id="check-result" style="padding:0 1rem 0.5rem"></div>
+</div>
+
+<!-- Daemon control card -->
+<div class="card" style="margin-top:1.5rem">
+    <h2>Daemon Control</h2>
+    <div id="daemon-control"
+         hx-get="/daemon/status"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <p style="color:#999;font-size:0.9rem">Loading...</p>
+    </div>
+</div>
+
+<!-- CodeMirror 6 via CDN -->
+<script type="module">
+import { EditorView, basicSetup } from "https://esm.sh/codemirror@6.0.1";
+import { EditorState } from "https://esm.sh/@codemirror/state@6.4.1";
+import { oneDark } from "https://esm.sh/@codemirror/theme-one-dark@6.1.2";
+
+const textarea = document.getElementById("config-editor");
+const initialContent = textarea.value;
+
+const view = new EditorView({
+    state: EditorState.create({
+        doc: initialContent,
+        extensions: [
+            basicSetup,
+            oneDark,
+            EditorView.lineWrapping,
+        ],
+    }),
+    parent: document.getElementById("editor-wrapper"),
+});
+
+// Keep hidden textarea in sync for hx-include
+document.getElementById("editor-form").addEventListener("htmx:configRequest", (e) => {
+    textarea.value = view.state.doc.toString();
+});
+
+// Also sync on any HTMX request trigger
+document.body.addEventListener("htmx:beforeRequest", () => {
+    textarea.value = view.state.doc.toString();
+});
+</script>
+{% endblock %}

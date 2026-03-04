@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Backups — TACACS+ Web UI{% endblock %}
+{% block content %}
+<h1>Config Backups</h1>
+
+{% if user.role in ('operator', 'admin') %}
+<div class="card">
+    <h2>Create Backup</h2>
+    <form style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap"
+          hx-post="/backups/create"
+          hx-target="#backup-list"
+          hx-swap="innerHTML">
+        <div class="form-row" style="margin-bottom:0;flex:1 1 200px">
+            <label for="label">Label (optional)</label>
+            <input type="text" id="label" name="label" placeholder="e.g. before-maintenance" maxlength="32">
+        </div>
+        <button type="submit" class="btn btn-primary">Create backup</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="card" style="padding:0">
+    <div id="backup-list">
+        {% include "_backup_list.html" %}
+    </div>
+</div>
+
+<!-- Diff modal -->
+<div id="diff-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+     z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:8px;padding:1.5rem;max-width:900px;width:95%;
+                max-height:85vh;overflow-y:auto;position:relative">
+        <button onclick="document.getElementById('diff-modal').style.display='none'"
+                style="position:absolute;top:1rem;right:1rem;background:none;border:none;
+                       font-size:1.2rem;cursor:pointer">✕</button>
+        <h2 style="margin-bottom:1rem" id="diff-title">Diff</h2>
+        <div id="diff-content"></div>
+    </div>
+</div>
+
+<script>
+function showDiff(name) {
+    document.getElementById("diff-title").textContent = "Diff: " + name;
+    document.getElementById("diff-modal").style.display = "flex";
+    htmx.ajax("GET", "/backups/" + encodeURIComponent(name) + "/diff",
+              {target: "#diff-content", swap: "innerHTML"});
+}
+</script>
+{% endblock %}

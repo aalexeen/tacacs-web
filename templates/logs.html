@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Logs — TACACS+ Web UI{% endblock %}
+{% block content %}
+<h1>Logs</h1>
+
+<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+        <!-- Log type tabs -->
+        <div style="display:flex;gap:0.4rem">
+            {% for lt in log_types %}
+            <a href="/logs?log_type={{ lt }}&lines={{ lines }}"
+               class="btn {% if lt == log_type %}btn-primary{% else %}btn-secondary{% endif %}">
+                {{ lt }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Lines selector -->
+        <select id="lines-select" style="width:auto"
+                onchange="window.location='/logs?log_type={{ log_type }}&lines='+this.value">
+            {% for n in [50, 100, 200, 500] %}
+            <option value="{{ n }}" {% if n == lines %}selected{% endif %}>last {{ n }} lines</option>
+            {% endfor %}
+        </select>
+
+        <!-- Refresh button -->
+        <button class="btn btn-secondary"
+                hx-get="/logs/content?log_type={{ log_type }}&lines={{ lines }}"
+                hx-target="#log-content"
+                hx-swap="innerHTML">
+            Refresh
+        </button>
+
+        <!-- Auto-refresh toggle -->
+        <label style="font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+            <input type="checkbox" id="auto-refresh"> Auto-refresh (5s)
+        </label>
+    </div>
+</div>
+
+<div class="card" style="padding:0">
+    <div id="log-content">
+        {% include "_log_content.html" %}
+    </div>
+</div>
+
+<script>
+let autoRefreshInterval = null;
+document.getElementById("auto-refresh").addEventListener("change", function() {
+    if (this.checked) {
+        autoRefreshInterval = setInterval(() => {
+            htmx.ajax("GET", "/logs/content?log_type={{ log_type }}&lines={{ lines }}",
+                      {target: "#log-content", swap: "innerHTML"});
+        }, 5000);
+    } else {
+        clearInterval(autoRefreshInterval);
+    }
+});
+</script>
+{% endblock %}

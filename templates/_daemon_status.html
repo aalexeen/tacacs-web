@@ -1,0 +1,42 @@
+{% if status.running %}
+<span class="badge badge-enabled">active</span>
+{% elif status.active == "failed" %}
+<span class="badge badge-disabled">failed</span>
+{% else %}
+<span class="badge badge-disabled">{{ status.active }}</span>
+{% endif %}
+
+{% if action_result is defined %}
+    {% if action_result.ok %}
+    <span style="font-size:0.82rem;color:#1e8449;margin-left:0.5rem">Done.</span>
+    {% else %}
+    <span style="font-size:0.82rem;color:#c0392b;margin-left:0.5rem">{{ action_result.output }}</span>
+    {% endif %}
+{% endif %}
+
+<!-- Full daemon control block (shown in /daemon-control div) -->
+{% if request.url.path == "/daemon/status" and not request.headers.get("HX-Target","") == "daemon-status-badge" %}
+<div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+    {% if user.role in ('operator', 'admin') %}
+    <form method="post" action="/daemon/restart"
+          hx-post="/daemon/restart" hx-target="#daemon-control" hx-swap="innerHTML">
+        <button type="submit" class="btn btn-secondary">Restart</button>
+    </form>
+    {% endif %}
+    {% if user.role == 'admin' %}
+    <form method="post" action="/daemon/start"
+          hx-post="/daemon/start" hx-target="#daemon-control" hx-swap="innerHTML">
+        <button type="submit" class="btn btn-secondary">Start</button>
+    </form>
+    <form method="post" action="/daemon/stop"
+          hx-post="/daemon/stop" hx-target="#daemon-control" hx-swap="innerHTML"
+          onsubmit="return confirm('Stop TACACS+ daemon?')">
+        <button type="submit" class="btn btn-danger">Stop</button>
+    </form>
+    {% endif %}
+</div>
+{% if status.status_output %}
+<pre style="margin-top:1rem;font-size:0.78rem;background:#f8f8f8;padding:0.75rem;
+            border-radius:4px;overflow-x:auto;max-height:200px;overflow-y:auto">{{ status.status_output }}</pre>
+{% endif %}
+{% endif %}

@@ -1,0 +1,8 @@
+{% if ok %}
+<div class="alert alert-success" style="margin:0.75rem 0 0.25rem">{{ output }}</div>
+{% else %}
+<div class="alert alert-error" style="margin:0.75rem 0 0.25rem">
+    <strong>Error:</strong>
+    <pre style="margin-top:0.4rem;white-space:pre-wrap;font-size:0.82rem">{{ output }}</pre>
+</div>
+{% endif %}

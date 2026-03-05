@@ -3,11 +3,12 @@
 Python web UI for managing a [tac_plus-ng](https://github.com/MarcJHuber/event-driven-servers) TACACS+ server.
 
 **Features:**
-- Config editor in browser (CodeMirror 6, one-dark theme)
+- Config editor in browser (CodeMirror 6) with tac_plus-ng syntax highlighting
+- Password hash generator: SHA-512 crypt (`$6$...`) via `openssl passwd -6`, with Copy / Random / Clear
 - Syntax check (`tac_plus-ng -P`) before save
-- Apply config without restart (SIGHUP)
+- Apply config without restart (SIGHUP via `systemctl reload`)
 - Daemon control: start / stop / restart / live status
-- Log viewer: access / authentication / authorization / accounting
+- Log viewer: access / authorization / accounting
 - Config backups: create, restore, delete, unified diff
 - Role-based access: admin / operator / viewer
 - File-based user store (no database)
@@ -97,20 +98,20 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 ## Sudoers
 
-The web process needs `sudo` access for config check, SIGHUP, and systemctl. Create `/etc/sudoers.d/tacacs-web`:
+The web process needs `sudo` access for config check, reload, and daemon control. `install.sh` writes this file automatically. For manual setup, create `/etc/sudoers.d/tacacs-web`:
 
 ```
-# Replace 'www' with the user running the web process
+# Replace 'tacacs-web' with the user running the web process
 Cmnd_Alias TACACS_WEB = \
     /usr/local/sbin/tac_plus-ng -P *, \
-    /bin/systemctl start tac_plus-ng, \
-    /bin/systemctl stop tac_plus-ng, \
-    /bin/systemctl restart tac_plus-ng, \
-    /bin/systemctl kill -s HUP tac_plus-ng, \
-    /bin/systemctl is-active tac_plus-ng, \
-    /bin/systemctl status tac_plus-ng *
+    /usr/bin/systemctl start tac_plus-ng, \
+    /usr/bin/systemctl stop tac_plus-ng, \
+    /usr/bin/systemctl restart tac_plus-ng, \
+    /usr/bin/systemctl reload tac_plus-ng, \
+    /usr/bin/systemctl is-active tac_plus-ng, \
+    /usr/bin/systemctl status tac_plus-ng *
 
-www ALL=(root) NOPASSWD: TACACS_WEB
+tacacs-web ALL=(root) NOPASSWD: TACACS_WEB
 ```
 
 Validate with `sudo visudo -c`.
@@ -141,22 +142,26 @@ Roles: `admin`, `operator`, `viewer`.
 
 ---
 
-## Systemd unit (optional)
+## Systemd unit
 
-`/etc/systemd/system/tacacs-web.service`:
+`install.sh` writes the unit file automatically. The generated unit looks like:
 
 ```ini
 [Unit]
 Description=TACACS+ Web UI
 After=network.target tac_plus-ng.service
+Wants=tac_plus-ng.service
 
 [Service]
 Type=simple
-User=www
-WorkingDirectory=/home/alex_jd/AI/tacacs-web
-EnvironmentFile=/home/alex_jd/AI/tacacs-web/.env
-ExecStart=/usr/bin/uvicorn web:app --host 127.0.0.1 --port 8080
+User=tacacs-web
+Group=tacacs-web
+WorkingDirectory=/opt/tacacs-web
+EnvironmentFile=/opt/tacacs-web/.env
+ExecStart=/opt/tacacs-web/.venv/bin/uvicorn web:app --host 127.0.0.1 --port 8080
 Restart=on-failure
+RestartSec=5
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -187,27 +192,29 @@ tac_plus-ng.cfg.YYYY-MM-DD_HH-MM-SS.pre-restore   ← auto-created before restor
 tacacs-web/
 ├── web.py                  # FastAPI app, login/logout/profile routes
 ├── auth.py                 # bcrypt + signed cookies + users.json store
-├── manage_users.py         # CLI bootstrap tool
+├── manage_users.py         # CLI user management tool
+├── install.sh              # automated install: user, venv, sudoers, systemd, nginx
 ├── requirements.txt
 ├── .env.example
-├── users.json              # created on first user add
+├── users.json              # created on first user add (not in repo)
 ├── routes/
-│   ├── config.py           # GET / POST /config/*
-│   ├── daemon.py           # GET/POST /daemon/*
-│   ├── logs.py             # GET /logs*
-│   ├── backups.py          # GET/POST/DELETE /backups/*
-│   └── users.py            # GET/POST /users/*
+│   ├── config.py           # GET / POST /config/* (editor, check, save, apply, passwd-hash)
+│   ├── daemon.py           # GET/POST /daemon/* (status, start, stop, restart)
+│   ├── logs.py             # GET /logs* (access, authorization, accounting)
+│   ├── backups.py          # GET/POST/DELETE /backups/* (create, restore, delete, diff)
+│   └── users.py            # GET/POST /users/* (add, delete, set-password, set-role, toggle)
 └── templates/
     ├── base.html
     ├── login.html
-    ├── editor.html         # config editor (CodeMirror 6)
+    ├── editor.html         # config editor: CodeMirror 6 + syntax highlighting + passwd hash
     ├── logs.html
     ├── backups.html
     ├── users.html
     ├── profile.html
-    ├── _check_result.html  # HTMX partial
-    ├── _daemon_status.html # HTMX partial
-    ├── _log_content.html   # HTMX partial
-    ├── _backup_list.html   # HTMX partial
-    └── _backup_diff.html   # HTMX partial
+    ├── _check_result.html  # HTMX partial: config check / save / apply result
+    ├── _daemon_status.html # HTMX partial: daemon status + control buttons
+    ├── _passwd_hash.html   # HTMX partial: generated $6$ hash result
+    ├── _log_content.html   # HTMX partial: log lines
+    ├── _backup_list.html   # HTMX partial: backup table
+    └── _backup_diff.html   # HTMX partial: unified diff view
 ```

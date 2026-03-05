@@ -54,6 +54,58 @@ def _check_config(content: str) -> dict:
 # Pages
 # ------------------------------------------------------------------
 
+@router.post("/config/passwd-hash", response_class=HTMLResponse)
+async def passwd_hash(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Generate a SHA-512 crypt hash ($6$...) via `openssl passwd -6`.
+
+    Equivalent to running: openssl passwd -6 <password>
+    The result can be pasted directly into tac_plus-ng config as a password hash.
+    """
+    form = await request.form()
+    password = form.get("password", "")
+
+    if not password:
+        return templates.TemplateResponse(
+            request, "_passwd_hash.html",
+            {"error": "Password must not be empty.", "hash": None}
+        )
+
+    try:
+        # openssl passwd -6 reads the password from stdin to avoid it
+        # appearing in the process list (argv is visible to other users via ps)
+        result = subprocess.run(
+            ["openssl", "passwd", "-6", "-stdin"],
+            input=password,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            error = (result.stderr or "openssl passwd failed").strip()
+            return templates.TemplateResponse(
+                request, "_passwd_hash.html",
+                {"error": error, "hash": None}
+            )
+        passwd_hash_value = result.stdout.strip()
+        return templates.TemplateResponse(
+            request, "_passwd_hash.html",
+            {"error": None, "hash": passwd_hash_value}
+        )
+    except FileNotFoundError:
+        return templates.TemplateResponse(
+            request, "_passwd_hash.html",
+            {"error": "openssl not found. Install openssl package.", "hash": None}
+        )
+    except subprocess.TimeoutExpired:
+        return templates.TemplateResponse(
+            request, "_passwd_hash.html",
+            {"error": "Timeout running openssl passwd.", "hash": None}
+        )
+
+
 @router.get("/", response_class=HTMLResponse)
 async def editor_page(request: Request, user: dict = Depends(get_current_user)):
     content = _read_config()

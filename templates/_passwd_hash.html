@@ -1,0 +1,19 @@
+{% if error %}
+<div class="alert alert-error" style="margin-top:0.5rem">{{ error }}</div>
+{% elif hash %}
+<div style="margin-top:0.5rem">
+    {# The generated $6$... hash ready to paste into the tac_plus-ng config #}
+    <label style="font-size:0.82rem;color:#555;margin-bottom:0.3rem">
+        SHA-512 crypt hash — copy and paste into config:
+    </label>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+        <input type="text" id="passwd-hash-result" readonly value="{{ hash }}"
+               style="font-family:monospace;font-size:0.85rem;background:#f8f8f8;flex:1">
+        <button type="button" class="btn btn-secondary"
+                onclick="navigator.clipboard.writeText(document.getElementById('passwd-hash-result').value)
+                         .then(() => { this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy',1500); })">
+            Copy
+        </button>
+    </div>
+</div>
+{% endif %}

@@ -65,6 +65,101 @@
     <div id="check-result" style="padding:0 1rem 0.5rem"></div>
 </div>
 
+<!-- Password hash generator card
+     Generates a SHA-512 crypt hash ($6$...) via `openssl passwd -6`.
+     The result can be pasted directly into the tac_plus-ng config as a user password hash.
+
+     Client-side helpers (normalise / generate / clear) run entirely in the browser —
+     no extra round-trips to the server. -->
+<div class="card" style="margin-top:1.5rem">
+    <h2>Password Hash Generator</h2>
+    <p style="font-size:0.85rem;color:#666;margin-bottom:1rem">
+        Enter a password to generate a <code>$6$...</code> hash (SHA-512 crypt,
+        equivalent to <code>openssl passwd -6</code>). Paste the result directly
+        into the <code>tac_plus-ng</code> config.
+    </p>
+    <form id="passwd-hash-form">
+        <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+                <label for="passwd-input">Password</label>
+
+                <input type="text" id="passwd-input" name="password"
+                       placeholder="enter password" autocomplete="off"
+                       oninput="passwdNormalise(this)">
+            </div>
+            <!-- Generate hash: sends the normalised value to the server -->
+            <button type="button" class="btn btn-secondary"
+                    hx-post="/config/passwd-hash"
+                    hx-include="#passwd-hash-form"
+                    hx-target="#passwd-hash-result"
+                    hx-swap="innerHTML">
+                Generate hash
+            </button>
+            <!-- Random: fill the field with a generated password, clear old result -->
+            <button type="button" class="btn btn-secondary"
+                    onclick="passwdRandom()">
+                Random
+            </button>
+            <!-- Clear: wipe the input field and the hash result area -->
+            <button type="button" class="btn btn-secondary"
+                    onclick="passwdClear()">
+                Clear
+            </button>
+        </div>
+    </form>
+    {# HTMX inserts the _passwd_hash.html partial here with the result or error #}
+    <div id="passwd-hash-result"></div>
+</div>
+
+<script>
+// Allowed character set for both normalisation and random generation:
+//   - ASCII letters a-z A-Z
+//   - digits 0-9
+//   - "safe" special characters: ! @ # $ % ^ & * ( ) _ - + = [ ] { } | \ / < > ~ `
+//   Excluded: whitespace, and punctuation marks , . : ; ' " ? (confusing in config files)
+const PASSWD_CHARSET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=[]{}|\\/<>~`';
+
+// Remove every character that is NOT in PASSWD_CHARSET.
+// Called on every keystroke so the field never contains forbidden characters.
+function passwdNormalise(input) {
+    const allowed = new Set(PASSWD_CHARSET);
+    const clean = Array.from(input.value).filter(c => allowed.has(c)).join('');
+    if (clean !== input.value) input.value = clean;
+}
+
+// Generate a cryptographically random password of 20 characters from PASSWD_CHARSET.
+// Uses crypto.getRandomValues for uniform distribution (no modulo bias shortcut).
+function passwdRandom() {
+    const len = 20;
+    const charset = PASSWD_CHARSET;
+    const values = new Uint32Array(len);
+    crypto.getRandomValues(values);
+    // Accept only values that fall within a multiple of charset.length to avoid bias
+    const limit = Math.floor(0x100000000 / charset.length) * charset.length;
+    const chars = [];
+    let i = 0;
+    // Re-sample rejected values (extremely rare; loop terminates quickly in practice)
+    while (chars.length < len) {
+        if (i >= values.length) {
+            crypto.getRandomValues(values);
+            i = 0;
+        }
+        if (values[i] < limit) chars.push(charset[values[i] % charset.length]);
+        i++;
+    }
+    const input = document.getElementById('passwd-input');
+    input.value = chars.join('');
+    // Clear any previously shown hash so it doesn't belong to the old password
+    document.getElementById('passwd-hash-result').innerHTML = '';
+}
+
+// Wipe the password field and the hash result area.
+function passwdClear() {
+    document.getElementById('passwd-input').value = '';
+    document.getElementById('passwd-hash-result').innerHTML = '';
+}
+</script>
+
 <!-- Daemon control card -->
 <div class="card" style="margin-top:1.5rem">
     <h2>Daemon Control</h2>

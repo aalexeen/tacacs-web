@@ -20,7 +20,7 @@
 <div class="card" style="padding:0; overflow:hidden">
     <form id="editor-form">
         <!-- CodeMirror editor -->
-        <div id="editor-wrapper" style="border-bottom:1px solid #eee; min-height:600px">
+        <div id="editor-wrapper" style="border-bottom:1px solid #eee; height:600px; overflow-y:auto">
             <textarea id="config-editor" name="content" style="display:none">{{ content }}</textarea>
         </div>
 
@@ -171,13 +171,141 @@ function passwdClear() {
     </div>
 </div>
 
-<!-- CodeMirror 6 via CDN -->
+<!-- CodeMirror 6 via CDN
+     ---------------------------------------------------------------
+     CM6 uses identity checks on objects from @codemirror/state.
+     esm.sh bundles resolve sub-package deps via internal relative
+     URLs that importmap CANNOT intercept. The only reliable fix is
+     to import every sub-package from its exact /v135/ internal URL
+     — the same paths that codemirror@6.0.1 already loaded — so the
+     browser module cache returns the same instance for all of them.
+
+     Exact versions (from codemirror@6.0.1 at esm.sh v135):
+       state@6.3.1, view@6.22.0, language@6.9.2,
+       lezer/highlight@1.2.0  (confirmed from language.mjs source)
+     --------------------------------------------------------------- -->
 <script type="module">
 let cmLoaded = false;
 try {
-    const { EditorView, basicSetup } = await import("https://esm.sh/codemirror@6.0.1");
-    const { EditorState }            = await import("https://esm.sh/@codemirror/state@6.4.1");
-    const { oneDark }                = await import("https://esm.sh/@codemirror/theme-one-dark@6.1.2");
+    // Pin every import to the exact /v135/ URLs that codemirror@6.0.1
+    // loads internally — guarantees one module instance per package.
+    const { EditorView, basicSetup }                              = await import("https://esm.sh/v135/codemirror@6.0.1/es2022/codemirror.mjs");
+    const { EditorState }                                         = await import("https://esm.sh/v135/@codemirror/state@6.3.1/es2022/state.mjs");
+    const { StreamLanguage, HighlightStyle, syntaxHighlighting }  = await import("https://esm.sh/v135/@codemirror/language@6.9.2/es2022/language.mjs");
+    const { tags }                                                = await import("https://esm.sh/v135/@lezer/highlight@1.2.0/es2022/highlight.mjs");
+
+    // -----------------------------------------------------------------
+    // tac_plus-ng StreamParser (CodeMirror 6 StreamLanguage)
+    //
+    // tokenTable maps the string names returned by token() to @lezer
+    // highlight tags. syntaxHighlighting(hs) then applies CSS colours
+    // to those tags via the HighlightStyle defined below.
+    // -----------------------------------------------------------------
+
+    // Block keywords that open named sections
+    const BLOCK_KW = new Set([
+        'id', 'net', 'device', 'profile', 'group', 'user',
+        'ruleset', 'rule', 'log', 'spawn', 'listen', 'script',
+    ]);
+    // Script flow-control keywords
+    const FLOW_KW = new Set(['if', 'permit', 'deny', 'set']);
+    // Directive / property names (LHS of assignments and standalone directives)
+    const DIRECTIVES = new Set([
+        'key', 'address', 'port', 'background', 'member', 'enabled',
+        'destination', 'welcome', 'banner', 'debug', 'instances',
+        'password', 'login', 'access', 'authorization', 'accounting',
+    ]);
+    // Bare atom values (yes/no, mode names, built-in identifiers)
+    const ATOMS = new Set([
+        'yes', 'no', 'crypt', 'shell', 'cmd', 'service',
+        'priv-lvl', 'syslog',
+    ]);
+
+    const tacplusLanguage = StreamLanguage.define({
+        // tokenTable: maps token() return strings → @lezer tags.
+        // This is the documented way to use custom token names with
+        // HighlightStyle in StreamLanguage (CM6 >= 6.10).
+        tokenTable: {
+            blockKw:   tags.keyword,
+            flowKw:    tags.controlKeyword,
+            directive: tags.propertyName,
+            atom:      tags.atom,
+            hash:      tags.typeName,
+        },
+
+        token(stream) {
+            if (stream.eatSpace()) return null;
+
+            // Comment: # to end of line
+            if (stream.peek() === '#') {
+                stream.skipToEnd();
+                return 'comment';      // maps to tags.comment (built-in)
+            }
+
+            // Double-quoted string literal
+            if (stream.peek() === '"') {
+                stream.next();
+                while (!stream.eol()) {
+                    const ch = stream.next();
+                    if (ch === '\\') { stream.next(); continue; } // escape
+                    if (ch === '"') break;
+                }
+                return 'string';       // maps to tags.string (built-in)
+            }
+
+            // Regex pattern in script conditions: /^show interfaces/
+            if (stream.peek() === '/') {
+                stream.next();
+                while (!stream.eol()) {
+                    const ch = stream.next();
+                    if (ch === '\\') { stream.next(); continue; }
+                    if (ch === '/') break;
+                }
+                return 'string';
+            }
+
+            // Crypt hash value: $6$salt$hash  $5$...  $1$...
+            if (stream.peek() === '$') {
+                stream.match(/\$[0-9a-zA-Z$./]+/);
+                return 'hash';         // → tags.typeName (orange italic)
+            }
+
+            // Operators: =~ == =
+            if (stream.match(/=~|==|=/)) return 'operator'; // tags.operator (built-in)
+
+            // Braces / parens — structural punctuation, no colour
+            if (stream.match(/[{}(),]/)) return null;
+
+            // Integer numbers (ports, priv levels, instance counts)
+            if (stream.match(/[0-9]+/)) return 'number';    // tags.number (built-in)
+
+            // Identifiers — classified by lookup sets
+            if (stream.match(/[A-Za-z_][\w\-.]*/)) {
+                const word = stream.current();
+                if (BLOCK_KW.has(word))   return 'blockKw';   // → tags.keyword
+                if (FLOW_KW.has(word))    return 'flowKw';    // → tags.controlKeyword
+                if (DIRECTIVES.has(word)) return 'directive'; // → tags.propertyName
+                if (ATOMS.has(word))      return 'atom';      // → tags.atom
+                return null;  // unrecognised identifier — no highlight
+            }
+
+            stream.next();
+            return null;
+        },
+    });
+
+    // Colour mapping: @lezer tags → CSS — follows the oneDark palette
+    const tacplusHighlight = HighlightStyle.define([
+        { tag: tags.comment,        color: '#5c6370', fontStyle: 'italic' },
+        { tag: tags.string,         color: '#98c379' },                       // green
+        { tag: tags.keyword,        color: '#c678dd', fontWeight: 'bold' },   // purple
+        { tag: tags.controlKeyword, color: '#e06c75', fontWeight: 'bold' },   // red
+        { tag: tags.propertyName,   color: '#61afef' },                       // blue
+        { tag: tags.atom,           color: '#e5c07b' },                       // yellow
+        { tag: tags.typeName,       color: '#d19a66', fontStyle: 'italic' },  // orange italic ($6$...)
+        { tag: tags.operator,       color: '#56b6c2' },                       // cyan
+        { tag: tags.number,         color: '#d19a66' },                       // orange
+    ]);
 
     const textarea = document.getElementById("config-editor");
     const wrapper  = document.getElementById("editor-wrapper");
@@ -185,7 +313,12 @@ try {
     const view = new EditorView({
         state: EditorState.create({
             doc: textarea.value,
-            extensions: [basicSetup, oneDark, EditorView.lineWrapping],
+            extensions: [
+                basicSetup,
+                tacplusLanguage,
+                syntaxHighlighting(tacplusHighlight),
+                EditorView.lineWrapping,
+            ],
         }),
         parent: wrapper,
     });
@@ -203,16 +336,16 @@ try {
 // Fallback: show plain textarea if CodeMirror didn't load
 if (!cmLoaded) {
     const textarea = document.getElementById("config-editor");
-    textarea.style.display  = "block";
-    textarea.style.width    = "100%";
-    textarea.style.minHeight = "600px";
+    textarea.style.display    = "block";
+    textarea.style.width      = "100%";
+    textarea.style.minHeight  = "600px";
     textarea.style.fontFamily = "monospace";
-    textarea.style.fontSize = "0.85rem";
-    textarea.style.padding  = "0.75rem";
-    textarea.style.border   = "none";
-    textarea.style.outline  = "none";
-    textarea.style.resize   = "vertical";
-    textarea.style.boxSizing = "border-box";
+    textarea.style.fontSize   = "0.85rem";
+    textarea.style.padding    = "0.75rem";
+    textarea.style.border     = "none";
+    textarea.style.outline    = "none";
+    textarea.style.resize     = "vertical";
+    textarea.style.boxSizing  = "border-box";
 }
 </script>
 {% endblock %}

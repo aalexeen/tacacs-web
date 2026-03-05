@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -17,9 +16,8 @@ DEFAULT_LINES = 200
 
 LOG_TYPES = {
     "access": "access.log",
-    "authentication": "authentication.log",
-    "authorization": "authorization.log",
-    "accounting": "accounting.log",
+    "authorization": "author.log",
+    "accounting": "acct.log",
 }
 
 router = APIRouter()
@@ -32,13 +30,7 @@ def _read_log(log_type: str, lines: int = DEFAULT_LINES) -> list[str]:
     if not filename:
         return [f"Unknown log type: {log_type}"]
 
-    # Try dated path: /var/log/tac_plus-ng/YYYY/MM/access-YYYY-MM-DD.log
-    today = date.today()
-    stem = filename.replace(".log", "")
-    dated_path = LOG_DIR / f"{today.year}" / f"{today.month:02d}" / f"{stem}-{today}.log"
-    flat_path = LOG_DIR / filename
-
-    path = dated_path if dated_path.exists() else flat_path
+    path = LOG_DIR / filename
 
     if not path.exists():
         return [f"Log file not found: {path}"]

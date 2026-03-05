@@ -123,22 +123,22 @@ async def apply_config(
     _write_config(content)
 
     try:
-        sighup = subprocess.run(
-            ["sudo", "systemctl", "kill", "-s", "HUP", TACACS_SERVICE],
-            capture_output=True, text=True, timeout=5
+        reload = subprocess.run(
+            ["sudo", "systemctl", "reload", TACACS_SERVICE],
+            capture_output=True, text=True, timeout=10
         )
-        if sighup.returncode != 0:
+        if reload.returncode != 0:
             return templates.TemplateResponse(
                 request, "_check_result.html",
-                {"ok": False, "output": "Saved but SIGHUP failed:\n" + sighup.stderr.strip()}
+                {"ok": False, "output": "Saved but reload failed:\n" + (reload.stdout + reload.stderr).strip()}
             )
     except subprocess.TimeoutExpired:
         return templates.TemplateResponse(
             request, "_check_result.html",
-            {"ok": False, "output": "Saved but SIGHUP timed out"}
+            {"ok": False, "output": "Saved but reload timed out"}
         )
 
     return templates.TemplateResponse(
         request, "_check_result.html",
-        {"ok": True, "output": "Config saved and applied (SIGHUP sent)."}
+        {"ok": True, "output": "Config saved and daemon reloaded."}
     )

@@ -20,7 +20,7 @@
 <div class="card" style="padding:0; overflow:hidden">
     <form id="editor-form">
         <!-- CodeMirror editor -->
-        <div id="editor-wrapper" style="border-bottom:1px solid #eee">
+        <div id="editor-wrapper" style="border-bottom:1px solid #eee; min-height:600px">
             <textarea id="config-editor" name="content" style="display:none">{{ content }}</textarea>
         </div>
 
@@ -78,33 +78,46 @@
 
 <!-- CodeMirror 6 via CDN -->
 <script type="module">
-import { EditorView, basicSetup } from "https://esm.sh/codemirror@6.0.1";
-import { EditorState } from "https://esm.sh/@codemirror/state@6.4.1";
-import { oneDark } from "https://esm.sh/@codemirror/theme-one-dark@6.1.2";
+let cmLoaded = false;
+try {
+    const { EditorView, basicSetup } = await import("https://esm.sh/codemirror@6.0.1");
+    const { EditorState }            = await import("https://esm.sh/@codemirror/state@6.4.1");
+    const { oneDark }                = await import("https://esm.sh/@codemirror/theme-one-dark@6.1.2");
 
-const textarea = document.getElementById("config-editor");
-const initialContent = textarea.value;
+    const textarea = document.getElementById("config-editor");
+    const wrapper  = document.getElementById("editor-wrapper");
 
-const view = new EditorView({
-    state: EditorState.create({
-        doc: initialContent,
-        extensions: [
-            basicSetup,
-            oneDark,
-            EditorView.lineWrapping,
-        ],
-    }),
-    parent: document.getElementById("editor-wrapper"),
-});
+    const view = new EditorView({
+        state: EditorState.create({
+            doc: textarea.value,
+            extensions: [basicSetup, oneDark, EditorView.lineWrapping],
+        }),
+        parent: wrapper,
+    });
 
-// Keep hidden textarea in sync for hx-include
-document.getElementById("editor-form").addEventListener("htmx:configRequest", (e) => {
-    textarea.value = view.state.doc.toString();
-});
+    // Sync hidden textarea before any HTMX request
+    document.body.addEventListener("htmx:beforeRequest", () => {
+        textarea.value = view.state.doc.toString();
+    });
 
-// Also sync on any HTMX request trigger
-document.body.addEventListener("htmx:beforeRequest", () => {
-    textarea.value = view.state.doc.toString();
-});
+    cmLoaded = true;
+} catch (e) {
+    console.warn("CodeMirror failed to load, falling back to textarea:", e);
+}
+
+// Fallback: show plain textarea if CodeMirror didn't load
+if (!cmLoaded) {
+    const textarea = document.getElementById("config-editor");
+    textarea.style.display  = "block";
+    textarea.style.width    = "100%";
+    textarea.style.minHeight = "600px";
+    textarea.style.fontFamily = "monospace";
+    textarea.style.fontSize = "0.85rem";
+    textarea.style.padding  = "0.75rem";
+    textarea.style.border   = "none";
+    textarea.style.outline  = "none";
+    textarea.style.resize   = "vertical";
+    textarea.style.boxSizing = "border-box";
+}
 </script>
 {% endblock %}

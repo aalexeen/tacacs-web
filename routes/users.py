@@ -14,6 +14,7 @@ from auth import (
     require_admin,
     set_user_enabled,
     update_user_password,
+    update_user_role,
 )
 
 router = APIRouter()
@@ -94,6 +95,31 @@ async def change_password(user_id: str, request: Request, user: dict = Depends(r
         request, "users.html",
         {"user": user, "users": users, "roles": ROLES,
          "error": error, "success": None if error else "Password updated."}
+    )
+
+
+@router.post("/users/{user_id}/set-role", response_class=HTMLResponse)
+async def change_role(user_id: str, request: Request, user: dict = Depends(require_admin)):
+    if user_id == user["id"]:
+        users = list_users()
+        return templates.TemplateResponse(
+            request, "users.html",
+            {"user": user, "users": users, "roles": ROLES,
+             "error": "Cannot change your own role.", "success": None},
+            status_code=400,
+        )
+    form = await request.form()
+    new_role = form.get("role", "")
+    error = None
+    try:
+        update_user_role(user_id, new_role)
+    except ValueError as e:
+        error = str(e)
+    users = list_users()
+    return templates.TemplateResponse(
+        request, "users.html",
+        {"user": user, "users": users, "roles": ROLES,
+         "error": error, "success": None if error else "Role updated."}
     )
 
 

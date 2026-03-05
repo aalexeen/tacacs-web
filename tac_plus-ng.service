@@ -1,0 +1,17 @@
+[Unit]
+Description=TACACS+ NG daemon (tac_plus-ng)
+Documentation=https://github.com/MarcJHuber/event-driven-servers
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/tac_plus-ng -f /etc/tac_plus-ng/tac_plus-ng.cfg
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tac_plus-ng
+
+[Install]
+WantedBy=multi-user.target

@@ -6,17 +6,16 @@ import json
 import os
 from pathlib import Path
 
+import bcrypt as _bcrypt
+
 from fastapi import Depends, HTTPException, Request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from passlib.context import CryptContext
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 COOKIE_NAME = "session"
 SESSION_MAX_AGE = 60 * 60 * 8  # 8 hours
@@ -34,11 +33,11 @@ ROLES = ("admin", "operator", "viewer")
 # ------------------------------------------------------------------
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 # ------------------------------------------------------------------
@@ -106,6 +105,18 @@ def update_user_password(user_id: str, new_password: str) -> bool:
     for u in users:
         if u["id"] == user_id:
             u["password_hash"] = hash_password(new_password)
+            _save_users(users)
+            return True
+    return False
+
+
+def update_user_role(user_id: str, new_role: str) -> bool:
+    if new_role not in ROLES:
+        raise ValueError(f"Invalid role '{new_role}'")
+    users = _load_users()
+    for u in users:
+        if u["id"] == user_id:
+            u["role"] = new_role
             _save_users(users)
             return True
     return False

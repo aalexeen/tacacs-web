@@ -60,9 +60,22 @@
                 {% endif %}
             </td>
             <td>
+                {% if u.id == user.id %}
                 <span class="badge {% if u.role == 'admin' %}badge-active{% elif u.role == 'operator' %}badge-warn{% else %}badge-inactive{% endif %}">
                     {{ u.role }}
                 </span>
+                {% else %}
+                <form method="post" action="/users/{{ u.id }}/set-role"
+                      style="display:flex;gap:0.3rem;align-items:center">
+                    <select name="role" style="font-size:0.82rem;padding:0.2rem 0.4rem">
+                        {% for r in roles %}
+                        <option value="{{ r }}" {% if r == u.role %}selected{% endif %}>{{ r }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-secondary"
+                            style="font-size:0.78rem;padding:0.2rem 0.5rem">Apply</button>
+                </form>
+                {% endif %}
             </td>
             <td>
                 {% if u.get('enabled', True) %}
@@ -85,10 +98,11 @@
 
                 <!-- Enable/disable toggle -->
                 {% if u.id != user.id %}
+                {% set toggle_label = 'Disable' if u.get('enabled', True) else 'Enable' %}
                 <form method="post" action="/users/{{ u.id }}/toggle">
                     <button type="submit" class="btn btn-secondary" style="font-size:0.8rem"
-                            onclick="return confirm('{% if u.get(\"enabled\", True) %}Disable{% else %}Enable{% endif %} user {{ u.username }}?')">
-                        {% if u.get('enabled', True) %}Disable{% else %}Enable{% endif %}
+                            onclick="return confirm('{{ toggle_label }} user {{ u.username }}?')">
+                        {{ toggle_label }}
                     </button>
                 </form>
 
